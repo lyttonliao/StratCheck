@@ -11,7 +11,7 @@ module.exports = {
         }),
     ],
     resolve: {
-        extensions: ['.tsx', '.ts', '.js'],
+        extensions: ['.tsx', '.ts', '.js', '.jsx'],
     },
     output: {
         filename: '[name].bundle.js',
@@ -33,21 +33,10 @@ module.exports = {
                 use: ['csv-loader'],
             },
             {
-                test: /\.js$/,
-                include: path.resolve(__dirname, src),
+                test: /\.(js|jsx|ts|tsx)$/i,
+                include: path.resolve(__dirname, 'src'),
                 loader: 'babel-loader',
             },
-            {
-                test: /\.tsx?$/,
-                use: [
-                    {
-                        loader: 'ts-loader',
-                        options: {
-                            transpileOnly: true,
-                        },
-                    },
-                ], 
-            }
         ],
     },
     optimization: {
