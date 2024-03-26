@@ -1,13 +1,17 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/julienschmidt/httprouter"
 )
 
+type envelope map[string]interface{}
 
 // readIDParam() doesn't use dependencies from our app struct, so it could be a regular function
 // rather than a method on application. Set up all your app-specific handlers and helpers so
@@ -22,4 +26,64 @@ func (app *application) readIDParam(r *http.Request) (int64, error) {
 	}
 
 	return id, nil
+}
+
+// time.Time encoded as RFC3339-format JSON string instead of JSON object
+// []byte encoded as base64-encoded JSON string instead of JSON array
+// channels, functions, complex number types cannot be encoded
+// pointer values will encode as the value pointed to
+// interface values will encode as value contained in the interface
+func (app *application) writeJSON(w http.ResponseWriter, status int, data envelope, headers http.Header) error {
+	js, err := json.MarshalIndent(data, "", "\t")
+	if err != nil {
+		return err
+	}
+
+	js = append(js, '\n')
+
+	for key, value := range headers {
+		w.Header()[key] = value
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	w.Write(js)
+
+	return nil
+}
+
+func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+	// Decode the request body into the target destination
+	err := json.NewDecoder(r.Body).Decode(dst)
+	if err != nil {
+		var syntaxError *json.SyntaxError
+		var unmarshalTypeError *json.UnmarshalTypeError
+		var invalidUnmarshalError *json.InvalidUnmarshalError
+
+		switch {
+		// errors.As() checks if err has type *json.SyntaxError
+		case errors.As(err, &syntaxError):
+			return fmt.Errorf("body contains badly-formed JSON (at character %d)", syntaxError.Offset)
+		// Decode() may return io.ErrUnexpectedEOF error for syntax errors
+		case errors.Is(err, io.ErrUnexpectedEOF):
+			return errors.New("body contains badly-formed JSON")
+		// unmarshalTypeErrors occur when JSON value is the wrong type for target destination
+		case errors.As(err, &unmarshalTypeError):
+			if unmarshalTypeError.Field != "" {
+				return fmt.Errorf("body contains incorrect JSON type for field %q", unmarshalTypeError.Field)
+			}
+			return fmt.Errorf("body contains incorrect JSON type (at character %d)", unmarshalTypeError.Offset)
+		// io.Eor error will be returned by Decode() if request body is empty
+		case errors.Is(err, io.EOF):
+			return errors.New("body must not be empty")
+		// json.InvalidUnmarshalError occurs if passing a non-nil pointer to Decode()
+		// learn about catching errors and panicking
+		case errors.As(err, &invalidUnmarshalError):
+			panic(err)
+		default:
+			return err
+		}
+	}
+
+	return nil
 }
