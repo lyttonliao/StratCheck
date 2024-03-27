@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/lyttonliao/StratCheck/internal/data"
+	"github.com/lyttonliao/StratCheck/internal/validator"
 )
 
 func (app *application) createStrategyHandler(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +22,19 @@ func (app *application) createStrategyHandler(w http.ResponseWriter, r *http.Req
 	// if destination is a struct, fields must be exported
 	err := app.readJSON(w, r, &input)
 	if err != nil {
-		app.errorResponse(w, r, http.StatusBadRequest, err.Error())
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	strategy := &data.Strategy{
+		Name:     input.Name,
+		Fields:   input.Fields,
+		Criteria: input.Criteria,
+	}
+
+	v := validator.New()
+	if data.ValidateStrategy(v, strategy); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
