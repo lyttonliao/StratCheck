@@ -10,6 +10,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/lyttonliao/StratCheck/internal/data"
+
 	// Alias this import to blank identifier to stop Go compiler from erroring
 	_ "github.com/lib/pq"
 )
@@ -36,6 +38,7 @@ type config struct {
 type application struct {
 	config config
 	logger *log.Logger
+	models data.Models
 }
 
 func main() {
@@ -63,13 +66,13 @@ func main() {
 
 	// Defer a call to db.Close() so that the connection pool is closed before exiting main() function
 	defer db.Close()
-
 	logger.Printf("database connection established")
 
 	// Declare an instance of the application struct, containing the config struct and logger
 	app := &application{
 		config: cfg,
 		logger: logger,
+		models: data.NewModels(db),
 	}
 
 	// Declare a HTTP server with timeout settings, which listens on the port

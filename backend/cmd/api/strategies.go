@@ -38,6 +38,20 @@ func (app *application) createStrategyHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	err = app.models.Strategies.Insert(strategy)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	headers := make(http.Header)
+	headers.Set("Location", fmt.Sprintf("v1/strategies/%d", strategy.ID))
+
+	err = app.writeJSON(w, http.StatusCreated, envelope{"strategy": strategy}, headers)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+
 	fmt.Fprintf(w, "%+v\n", input)
 }
 

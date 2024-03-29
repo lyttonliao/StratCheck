@@ -1,6 +1,7 @@
 package data
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/lyttonliao/StratCheck/internal/validator"
@@ -28,5 +29,24 @@ func ValidateStrategy(v *validator.Validator, strategy *Strategy) {
 	v.Check(len(strategy.Criteria) >= 1, "criteria", "must contain at least 1 criterium")
 	v.Check(validator.Unique(strategy.Fields), "fields", "must not contain duplicate values")
 	v.Check(validator.Unique(strategy.Criteria), "criteria", "must not contain duplicate values")
+}
 
+type StrategyModel struct {
+	DB *sql.DB
+}
+
+func (s StrategyModel) Insert(strategy *Strategy) error {
+	return nil
+}
+
+func (s StrategyModel) Get(id int64) (*Strategy, error) {
+	return nil, nil
+}
+
+func (s StrategyModel) Update(strategy *Strategy) error {
+	return nil
+}
+
+func (s StrategyModel) Delete(id int64) error {
+	return nil
 }
