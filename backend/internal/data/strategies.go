@@ -2,8 +2,10 @@ package data
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/lyttonliao/StratCheck/internal/validator"
 )
 
@@ -36,17 +38,113 @@ type StrategyModel struct {
 }
 
 func (s StrategyModel) Insert(strategy *Strategy) error {
-	return nil
+	query := `
+		INSERT INTO strategies (name, fields, criteria)
+		VALUES ($1, $2, $3)
+		RETURNING id, created_at, version
+	`
+
+	// pq.Array() takes our []string slice and converts it to a pq.StringArray type
+	// which implements the driver.Valuer and sql.Scanner interfaces which provide values
+	// the PostgreSQL database can understand and store in a text[] array column
+	args := []interface{}{
+		strategy.Name,
+		pq.Array(strategy.Fields),
+		pq.Array(strategy.Criteria),
+	}
+
+	return s.DB.QueryRow(query, args...).Scan(&strategy.ID, &strategy.CreatedAt, &strategy.Version)
 }
 
 func (s StrategyModel) Get(id int64) (*Strategy, error) {
-	return nil, nil
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+		SELECT id, name, created_at, fields, criteria, version
+		FROM strategies
+		WHERE id = $1
+	`
+
+	var strategy Strategy
+
+	err := s.DB.QueryRow(query, id).Scan(
+		&strategy.ID,
+		&strategy.Name,
+		&strategy.CreatedAt,
+		pq.Array(&strategy.Fields),
+		pq.Array(&strategy.Criteria),
+		&strategy.Version,
+	)
+	// If no match, Scan() will return a sql.ErrNoRows error
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &strategy, nil
 }
 
 func (s StrategyModel) Update(strategy *Strategy) error {
+	query := `
+		UPDATE strategies
+		SET name = $1, fields = $2, criteria = $3, version = version + 1
+		WHERE id = $4 AND version = $5
+		RETURNING version
+	`
+
+	args := []interface{}{
+		strategy.Name,
+		pq.Array(strategy.Fields),
+		pq.Array(strategy.Criteria),
+		strategy.ID,
+		strategy.Version,
+	}
+
+	err := s.DB.QueryRow(query, args...).Scan(&strategy.Version)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return ErrEditConflict
+		default:
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (s StrategyModel) Delete(id int64) error {
+	if id < 1 {
+		return ErrRecordNotFound
+	}
+
+	query := `
+		DELETE from strategies
+		WHERE id = $1
+	`
+
+	// Exec() method executes the query, passing in args for
+	// placeholder parameters, returns a sql.Result object
+	result, err := s.DB.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	//
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+
 	return nil
 }

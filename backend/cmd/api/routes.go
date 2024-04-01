@@ -21,8 +21,10 @@ func (app *application) routes() *httprouter.Router {
 	// Register relevant methods, URL patterns, and handler functions for endpoints using HandleFunc() method
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthcheckHandler)
 	router.HandlerFunc(http.MethodPost, "/v1/strategies", app.createStrategyHandler)
-	router.HandlerFunc(http.MethodGet, "/v1/strategies/:id", app.showStrategyHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/strategies", app.showAllStrategyHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/strategies/:id", app.showStrategyHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/strategies/:id", app.updateStrategyHandler)
+	router.HandlerFunc(http.MethodDelete, "/v1/strategies/:id", app.deleteStrategyHandler)
 
 	return router
 }
