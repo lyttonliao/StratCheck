@@ -204,5 +204,16 @@ func (app *application) listStrategiesHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	strategies, err := app.models.Strategies.GetAll(input.Name, input.Fields, input.Criteria, input.Filters)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"strategies": strategies}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+
 	fmt.Fprintf(w, "%+v\n", input)
 }

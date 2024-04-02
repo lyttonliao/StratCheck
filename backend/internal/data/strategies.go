@@ -61,6 +61,52 @@ func (s StrategyModel) Insert(strategy *Strategy) error {
 	return s.DB.QueryRowContext(ctx, query, args...).Scan(&strategy.ID, &strategy.CreatedAt, &strategy.Version)
 }
 
+func (s StrategyModel) GetAll(name string, fields []string, criteria []string, filters Filters) ([]*Strategy, error) {
+	query := `
+		SELECT id, created_at, name, fields, criteria, version
+		FROM strategies
+		ORDER BY id
+	`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := s.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	// Importantly, defer a call to rows.Close() to ensure the result set is closed
+	// before GetAll() returns
+	defer rows.Close()
+
+	strategies := []*Strategy{}
+
+	for rows.Next() {
+		var strategy Strategy
+
+		err := rows.Scan(
+			&strategy.ID,
+			&strategy.CreatedAt,
+			&strategy.Name,
+			pq.Array(&strategy.Fields),
+			pq.Array(&strategy.Criteria),
+			&strategy.Version,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		strategies = append(strategies, &strategy)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return strategies, nil
+}
+
 func (s StrategyModel) Get(id int64) (*Strategy, error) {
 	if id < 1 {
 		return nil, ErrRecordNotFound
