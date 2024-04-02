@@ -200,13 +200,13 @@ func (app *application) listStrategiesHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	strategies, err := app.models.Strategies.GetAll(input.Name, input.Fields, input.Filters)
+	strategies, metadata, err := app.models.Strategies.GetAll(input.Name, input.Fields, input.Filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"strategies": strategies}, nil)
+	err = app.writeJSON(w, http.StatusOK, envelope{"strategies": strategies, "metadata": metadata}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

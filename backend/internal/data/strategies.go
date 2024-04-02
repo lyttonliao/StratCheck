@@ -62,13 +62,13 @@ func (s StrategyModel) Insert(strategy *Strategy) error {
 	return s.DB.QueryRowContext(ctx, query, args...).Scan(&strategy.ID, &strategy.CreatedAt, &strategy.Version)
 }
 
-func (s StrategyModel) GetAll(name string, fields []string, filters Filters) ([]*Strategy, error) {
+func (s StrategyModel) GetAll(name string, fields []string, filters Filters) ([]*Strategy, Metadata, error) {
 	// to_tsvector('simple', s) takes a string and splits it into lexemes, which is a basic lexical unit of words
 	// planto_tsquery('simple', s) takes a string and converts it to a formatted query term by
 	// stripping special characters and inserts the & operator between words
 	// @@ operator is the matching operator, checks if the query terms match the lexemes
 	query := fmt.Sprintf(
-		`SELECT id, created_at, name, fields, criteria, version
+		`SELECT count(*) OVER(), id, created_at, name, fields, criteria, version
 		FROM strategies
 		WHERE (to_tsvector('simple', name) @@ plainto_tsquery('simple', $1) OR $1 = '')
 		AND (fields @> $2 OR fields = '{}')
@@ -82,19 +82,21 @@ func (s StrategyModel) GetAll(name string, fields []string, filters Filters) ([]
 
 	rows, err := s.DB.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 
 	// Importantly, defer a call to rows.Close() to ensure the result set is closed
 	// before GetAll() returns
 	defer rows.Close()
 
+	totalRecords := 0
 	strategies := []*Strategy{}
 
 	for rows.Next() {
 		var strategy Strategy
 
 		err := rows.Scan(
+			&totalRecords,
 			&strategy.ID,
 			&strategy.CreatedAt,
 			&strategy.Name,
@@ -103,17 +105,19 @@ func (s StrategyModel) GetAll(name string, fields []string, filters Filters) ([]
 			&strategy.Version,
 		)
 		if err != nil {
-			return nil, err
+			return nil, Metadata{}, err
 		}
 
 		strategies = append(strategies, &strategy)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 
-	return strategies, nil
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+
+	return strategies, metadata, nil
 }
 
 func (s StrategyModel) Get(id int64) (*Strategy, error) {
