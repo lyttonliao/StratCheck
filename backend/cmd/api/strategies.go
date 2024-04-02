@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/lyttonliao/StratCheck/internal/data"
 	"github.com/lyttonliao/StratCheck/internal/validator"
@@ -101,6 +102,13 @@ func (app *application) updateStrategyHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if r.Header.Get("X-Expected-Version") != "" {
+		if strconv.FormatInt(int64(strategy.Version), 32) != r.Header.Get("X-Expected-Version") {
+			app.editConflictResponse(w, r)
+			return
+		}
+	}
+
 	var input struct {
 		Name     *string  `json:"name"`
 		Fields   []string `json:"fields"`
@@ -169,4 +177,32 @@ func (app *application) deleteStrategyHandler(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
+}
+
+func (app *application) listStrategiesHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Name     string
+		Fields   []string
+		Criteria []string
+		data.Filters
+	}
+
+	v := validator.New()
+	// r.URL.Query() returns url.Values map containing the query string data
+	qs := r.URL.Query()
+
+	input.Name = app.readString(qs, "name", "")
+	input.Fields = app.readCSV(qs, "fields", []string{})
+	input.Criteria = app.readCSV(qs, "criteria", []string{})
+	input.Filters.Page = app.readInt(qs, "page", 1, v)
+	input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
+	input.Filters.Sort = app.readString(qs, "sort", "id")
+	input.Filters.SortSafelist = []string{"id", "fields", "criteria", "-id", "-fields", "-criteria"}
+
+	if data.ValidateFilters(v, input.Filters); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	fmt.Fprintf(w, "%+v\n", input)
 }

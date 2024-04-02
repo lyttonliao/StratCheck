@@ -1,11 +1,13 @@
 package data
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
 
 	"github.com/lib/pq"
+
 	"github.com/lyttonliao/StratCheck/internal/validator"
 )
 
@@ -53,7 +55,10 @@ func (s StrategyModel) Insert(strategy *Strategy) error {
 		pq.Array(strategy.Criteria),
 	}
 
-	return s.DB.QueryRow(query, args...).Scan(&strategy.ID, &strategy.CreatedAt, &strategy.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	return s.DB.QueryRowContext(ctx, query, args...).Scan(&strategy.ID, &strategy.CreatedAt, &strategy.Version)
 }
 
 func (s StrategyModel) Get(id int64) (*Strategy, error) {
@@ -69,7 +74,21 @@ func (s StrategyModel) Get(id int64) (*Strategy, error) {
 
 	var strategy Strategy
 
-	err := s.DB.QueryRow(query, id).Scan(
+	// Use context.WithTimeout() function to create a context.Context
+	// which carries a 3s timeout deadline. Note that we're using empty
+	// context.Background() as the 'parent' context.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	// Use defer to make sure we cancel the context before the Get() method returns
+	// resources associated with the context will always be released before the Get() method
+	// returns to prevent memory leaks. Without it, resources won't be released until either
+	// the 3s timeout or the parent context is canceled. Timeout countdown begins when the context
+	// is created with context.WithTimeout()
+	// context has a Done channel. While SQL query is running, our database driver pq is
+	// also running a background goroutine which listens on this Done channel. If the channel
+	// is closed then pq sends a cancellation signal to psql and then it terminates the query
+	defer cancel()
+
+	err := s.DB.QueryRowContext(ctx, query, id).Scan(
 		&strategy.ID,
 		&strategy.Name,
 		&strategy.CreatedAt,
@@ -77,7 +96,7 @@ func (s StrategyModel) Get(id int64) (*Strategy, error) {
 		pq.Array(&strategy.Criteria),
 		&strategy.Version,
 	)
-	// If no match, Scan() will return a sql.ErrNoRows error
+
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -106,7 +125,10 @@ func (s StrategyModel) Update(strategy *Strategy) error {
 		strategy.Version,
 	}
 
-	err := s.DB.QueryRow(query, args...).Scan(&strategy.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := s.DB.QueryRowContext(ctx, query, args...).Scan(&strategy.Version)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -129,14 +151,16 @@ func (s StrategyModel) Delete(id int64) error {
 		WHERE id = $1
 	`
 
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	// Exec() method executes the query, passing in args for
 	// placeholder parameters, returns a sql.Result object
-	result, err := s.DB.Exec(query, id)
+	result, err := s.DB.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}
 
-	//
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return err
