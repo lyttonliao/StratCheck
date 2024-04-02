@@ -56,10 +56,6 @@ func (app *application) createStrategyHandler(w http.ResponseWriter, r *http.Req
 	fmt.Fprintf(w, "%+v\n", input)
 }
 
-func (app *application) showAllStrategyHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "show all strategies")
-}
-
 func (app *application) showStrategyHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := app.readIDParam(r)
 	if err != nil {
@@ -197,14 +193,14 @@ func (app *application) listStrategiesHandler(w http.ResponseWriter, r *http.Req
 	input.Filters.Page = app.readInt(qs, "page", 1, v)
 	input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
 	input.Filters.Sort = app.readString(qs, "sort", "id")
-	input.Filters.SortSafelist = []string{"id", "fields", "criteria", "-id", "-fields", "-criteria"}
+	input.Filters.SortSafelist = []string{"id", "name", "fields", "-id", "-name", "-fields"}
 
 	if data.ValidateFilters(v, input.Filters); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	strategies, err := app.models.Strategies.GetAll(input.Name, input.Fields, input.Criteria, input.Filters)
+	strategies, err := app.models.Strategies.GetAll(input.Name, input.Fields, input.Filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

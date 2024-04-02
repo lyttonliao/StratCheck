@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/lib/pq"
@@ -61,17 +62,25 @@ func (s StrategyModel) Insert(strategy *Strategy) error {
 	return s.DB.QueryRowContext(ctx, query, args...).Scan(&strategy.ID, &strategy.CreatedAt, &strategy.Version)
 }
 
-func (s StrategyModel) GetAll(name string, fields []string, criteria []string, filters Filters) ([]*Strategy, error) {
-	query := `
-		SELECT id, created_at, name, fields, criteria, version
+func (s StrategyModel) GetAll(name string, fields []string, filters Filters) ([]*Strategy, error) {
+	// to_tsvector('simple', s) takes a string and splits it into lexemes, which is a basic lexical unit of words
+	// planto_tsquery('simple', s) takes a string and converts it to a formatted query term by
+	// stripping special characters and inserts the & operator between words
+	// @@ operator is the matching operator, checks if the query terms match the lexemes
+	query := fmt.Sprintf(
+		`SELECT id, created_at, name, fields, criteria, version
 		FROM strategies
-		ORDER BY id
-	`
+		WHERE (to_tsvector('simple', name) @@ plainto_tsquery('simple', $1) OR $1 = '')
+		AND (fields @> $2 OR fields = '{}')
+		ORDER BY %s %s, id ASC
+		LIMIT $3 OFFSET $4`, filters.sortColumn(), filters.sortDirection())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := s.DB.QueryContext(ctx, query)
+	args := []interface{}{name, pq.Array(fields), filters.limit(), filters.offset()}
+
+	rows, err := s.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
