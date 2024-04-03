@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"sync"
+	"time"
 
 	"golang.org/x/time/rate"
 )
@@ -26,18 +29,58 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 	})
 }
 
+// This pattern of rate limiting will only work if your API application is running on
+// a single machine. If the infrastructure is distributed, with your app running
+// on multiple servers behind a load balancer, can use a fast database like Redis to
+// maintain a request count for clients
 func (app *application) rateLimit(next http.Handler) http.Handler {
-	limiter := rate.NewLimiter(2, 4)
+	type client struct {
+		limiter  *rate.Limiter
+		lastSeen time.Time
+	}
+	var (
+		mu      sync.Mutex
+		clients = make(map[string]*client)
+	)
 
 	// The function we return is a closure, which closes over the limiter variable
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// limiter.Allow() checks if the request is permitted, whenever this is called,
-		// 1 token will be consumed from the bucket, Allow() method is protected by
-		// a mutex and isa safe for concurrent use
-		if !limiter.Allow() {
+		ip, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+		go func() {
+			for {
+				time.Sleep(time.Minute)
+
+				mu.Lock()
+
+				for ip, client := range clients {
+					if time.Since(client.lastSeen) > 3*time.Minute {
+						delete(clients, ip)
+					}
+				}
+
+				mu.Unlock()
+			}
+		}()
+
+		// Lock the mutex to prevent this code from being executed concurrently
+		mu.Lock()
+
+		if _, found := clients[ip]; !found {
+			clients[ip] = &client{limiter: rate.NewLimiter(2, 4)}
+		}
+
+		if !clients[ip].limiter.Allow() {
+			mu.Unlock()
 			app.rateLimitExceededResponse(w, r)
 			return
 		}
+
+		mu.Unlock()
 
 		next.ServeHTTP(w, r)
 	})
