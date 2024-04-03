@@ -9,7 +9,7 @@ import (
 // Ensures all our routes are defined in one single place
 // Allows access to the router in any test code by initializing an application and calling the routes()
 // method on it
-func (app *application) routes() *httprouter.Router {
+func (app *application) routes() http.Handler {
 	// Initialize a new httprouter router instance
 	router := httprouter.New()
 
@@ -26,5 +26,6 @@ func (app *application) routes() *httprouter.Router {
 	router.HandlerFunc(http.MethodPatch, "/v1/strategies/:id", app.updateStrategyHandler)
 	router.HandlerFunc(http.MethodDelete, "/v1/strategies/:id", app.deleteStrategyHandler)
 
-	return router
+	// Wrap the router with the panic recovery middleware
+	return app.recoverPanic(router)
 }
