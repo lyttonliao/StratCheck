@@ -4,9 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"flag"
-	"fmt"
-	"log"
-	"net/http"
 	"os"
 	"time"
 
@@ -86,27 +83,10 @@ func main() {
 		models: data.NewModels(db),
 	}
 
-	// Declare a HTTP server with timeout settings, which listens on the port
-	// provided in the config struct and uses servemux as the handler
-	// Create a new Go log.Logger instance, The "" and 0 indicate that the
-	// log.Logger instance should not use a prefix or any flags
-	// Any log messages that http.Server writes will be passed to our Logger.Write() method
-	// because our Logger type satisfies the io.Writer interface (due to Write() method)
-	srv := http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.port),
-		Handler:      app.routes(),
-		ErrorLog:     log.New(logger, "", 0),
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
+	err = app.server()
+	if err != nil {
+		logger.PrintFatal(err, nil)
 	}
-
-	logger.PrintInfo("starting server", map[string]string{
-		"addr": cfg.env,
-		"env":  srv.Addr,
-	})
-	err = srv.ListenAndServe()
-	logger.PrintFatal(err, nil)
 }
 
 func openDB(cfg config) (*sql.DB, error) {
