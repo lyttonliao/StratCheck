@@ -49,7 +49,7 @@ func In(value string, list ...string) bool {
 	return false
 }
 
-// Matches() returns true if string valuie matches a specific regexp pattern
+// Matches() returns true if string value matches a specific regexp pattern
 func Matches(value string, rx *regexp.Regexp) bool {
 	return rx.MatchString(value)
 }
