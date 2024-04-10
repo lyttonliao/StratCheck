@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/lyttonliao/StratCheck/internal/jsonlog"
-
 	"github.com/lyttonliao/StratCheck/internal/data"
+	"github.com/lyttonliao/StratCheck/internal/jsonlog"
+	"github.com/lyttonliao/StratCheck/internal/mailer"
 
 	// Alias this import to blank identifier to stop Go compiler from erroring
 	_ "github.com/lib/pq"
@@ -36,6 +36,13 @@ type config struct {
 		burst   int
 		enabled bool
 	}
+	smtp struct {
+		host     string
+		port     int
+		username string
+		password string
+		sender   string
+	}
 }
 
 // Define application struct to hold dependencies for our HTTP handlers, helpers, middleware
@@ -43,6 +50,7 @@ type application struct {
 	config config
 	logger *jsonlog.Logger
 	models data.Models
+	mailer mailer.Mailer
 }
 
 func main() {
@@ -59,28 +67,30 @@ func main() {
 	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
+	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
+	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", "7976eeb31fe930", "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", "92a8c3af3f0e78", "SMTP password")
+	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "StratCheck <noreply@StratCheck.com>", "SMTP sender")
 
 	flag.Parse()
 
-	// Initialize a new jsonlog.Logger which write snay messages *at or above* the INFO severity level to the stdout stream
 	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
-	// Call the openDB() helper function to create the connection pool, passing in the config struct
 	db, err := openDB(cfg)
 	if err != nil {
 		logger.PrintFatal(err, nil)
 	}
 
-	// Defer a call to db.Close() so that the connection pool is closed before exiting main() function
 	defer db.Close()
 
 	logger.PrintInfo("database connection pool established", nil)
 
-	// Declare an instance of the application struct, containing the config struct and logger
 	app := &application{
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
+		mailer: mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
 
 	err = app.server()
