@@ -17,7 +17,7 @@ import (
 // log.Logger instance should not use a prefix or any flags
 // Any log messages that http.Server writes will be passed to our Logger.Write() method
 // because our Logger type satisfies the io.Writer interface (due to Write() method)
-func (app *application) server() error {
+func (app *application) serve() error {
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", app.config.port),
 		Handler:      app.routes(),
@@ -33,18 +33,25 @@ func (app *application) server() error {
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 		s := <-quit
 
-		app.logger.PrintInfo("shutting down server", map[string]string{
+		app.logger.PrintInfo("caught signal", map[string]string{
 			"signal": s.String(),
 		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		// Call Shutdown() on our server, passing in the context, method returns nil if
-		// the graceful shutdown was successful or because the shutdown didn't complete
-		// before the 5-second context deadline is hit. This will cause ListenAndServe()
-		// to immediately return a http.ErrServerClosed error
-		shutdownError <- srv.Shutdown(ctx)
+		err := srv.Shutdown(ctx)
+		if err != nil {
+			shutdownError <- err
+		}
+
+		app.logger.PrintInfo("completing background tasks", map[string]string{
+			"addr": srv.Addr,
+		})
+
+		// Call Wait() to block until our WaitGroup counter is zero
+		app.wg.Wait()
+		shutdownError <- nil
 	}()
 
 	app.logger.PrintInfo("starting server", map[string]string{
