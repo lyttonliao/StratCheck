@@ -13,11 +13,13 @@ var (
 type Models struct {
 	Strategies StrategyModel
 	Users      UserModel
+	Tokens     TokenModel
 }
 
 func NewModels(db *sql.DB) Models {
 	return Models{
 		Strategies: StrategyModel{DB: db},
 		Users:      UserModel{DB: db},
+		Tokens:     TokenModel{DB: db},
 	}
 }
