@@ -11,16 +11,12 @@ import (
 )
 
 func (app *application) createStrategyHandler(w http.ResponseWriter, r *http.Request) {
-	// declare an anonymous struct to be in HTTP request body
-	// this struct will be our *target decode destination*
 	var input struct {
 		Name     string   `json:"name"`
 		Fields   []string `json:"fields"`
 		Criteria []string `json:"criteria"`
 	}
 
-	// must pass non-nil pointer as target decode destination
-	// if destination is a struct, fields must be exported
 	err := app.readJSON(w, r, &input)
 	if err != nil {
 		app.badRequestResponse(w, r, err)

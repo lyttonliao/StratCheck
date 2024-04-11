@@ -14,11 +14,11 @@ func (app *application) routes() http.Handler {
 	router.MethodNotAllowed = http.HandlerFunc(app.methodNotAllowedResponse)
 
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthcheckHandler)
-	router.HandlerFunc(http.MethodPost, "/v1/strategies", app.createStrategyHandler)
-	router.HandlerFunc(http.MethodGet, "/v1/strategies", app.listStrategiesHandler)
-	router.HandlerFunc(http.MethodGet, "/v1/strategies/:id", app.showStrategyHandler)
-	router.HandlerFunc(http.MethodPatch, "/v1/strategies/:id", app.updateStrategyHandler)
-	router.HandlerFunc(http.MethodDelete, "/v1/strategies/:id", app.deleteStrategyHandler)
+	router.HandlerFunc(http.MethodPost, "/v1/strategies", app.requiredActivatedUser(app.createStrategyHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/strategies", app.requiredActivatedUser(app.listStrategiesHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/strategies/:id", app.requiredActivatedUser(app.showStrategyHandler))
+	router.HandlerFunc(http.MethodPatch, "/v1/strategies/:id", app.requiredActivatedUser(app.updateStrategyHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/strategies/:id", app.requiredActivatedUser(app.deleteStrategyHandler))
 
 	router.HandlerFunc(http.MethodPost, "/v1/users", app.registerUserHandler)
 	router.HandlerFunc(http.MethodPut, "/v1/users/activated", app.activateUserHandler)
