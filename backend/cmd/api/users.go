@@ -52,16 +52,18 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	err = app.models.Permissions.AddForUser(user.ID, "strategies:read")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
 	token, err := app.models.Tokens.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	// Run a background goroutine to send a welcome email, this is executed concurrently
-	// with the subsequent code, so we don't have to wait for the email to be sent before
-	// returning a JSON response to the client
-	// Run a deferred function which uses recover() to catch any panics
 	app.background(func() {
 		data := map[string]interface{}{
 			"activationToken": token.Plaintext,
