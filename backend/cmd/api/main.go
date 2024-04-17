@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -17,9 +18,10 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// Declare a string containing the app version number as hard-coded global constant
-// Will automatically generate this at build time later
-const version = "1.0.0"
+var (
+	buildTime string
+	version   string
+)
 
 // Define config struct to hold all configuration settings
 // For now, config settings will only have the network port that we want the server to listen on
@@ -84,7 +86,15 @@ func main() {
 		return nil
 	})
 
+	displayVersion := flag.Bool("version", false, "Display version and exit")
+
 	flag.Parse()
+
+	if *displayVersion {
+		fmt.Printf("Version:\t%s\n", version)
+		fmt.Printf("Build time:\t%s\n", buildTime)
+		os.Exit(0)
+	}
 
 	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
