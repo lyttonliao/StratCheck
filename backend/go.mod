@@ -3,6 +3,7 @@ module github.com/lyttonliao/StratCheck
 go 1.22.0
 
 require (
+	github.com/felixge/httpsnoop v1.0.4
 	github.com/go-mail/mail/v2 v2.3.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/lib/pq v1.10.9
