@@ -15,6 +15,7 @@ func (app *application) createStrategyHandler(w http.ResponseWriter, r *http.Req
 		Name     string   `json:"name"`
 		Fields   []string `json:"fields"`
 		Criteria []string `json:"criteria"`
+		Public   bool     `json:"public"`
 	}
 
 	err := app.readJSON(w, r, &input)
@@ -23,10 +24,14 @@ func (app *application) createStrategyHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	user := app.contextGetUser(r)
+
 	strategy := &data.Strategy{
 		Name:     input.Name,
 		Fields:   input.Fields,
 		Criteria: input.Criteria,
+		Public:   input.Public,
+		UserID:   user.ID,
 	}
 
 	v := validator.New()
@@ -35,7 +40,7 @@ func (app *application) createStrategyHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	err = app.models.Strategies.Insert(strategy)
+	err = app.models.Strategies.Insert(user.ID, strategy)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -53,13 +58,15 @@ func (app *application) createStrategyHandler(w http.ResponseWriter, r *http.Req
 }
 
 func (app *application) showStrategyHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := app.readIDParam(r)
+	strategyID, err := app.readIDParam(r)
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	strategy, err := app.models.Strategies.Get(id)
+	user := app.contextGetUser(r)
+
+	strategy, err := app.models.Strategies.Get(user.ID, strategyID)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -77,13 +84,15 @@ func (app *application) showStrategyHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (app *application) updateStrategyHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := app.readIDParam(r)
+	strategyID, err := app.readIDParam(r)
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	strategy, err := app.models.Strategies.Get(id)
+	user := app.contextGetUser(r)
+
+	strategy, err := app.models.Strategies.Get(user.ID, strategyID)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -105,6 +114,7 @@ func (app *application) updateStrategyHandler(w http.ResponseWriter, r *http.Req
 		Name     *string  `json:"name"`
 		Fields   []string `json:"fields"`
 		Criteria []string `json:"criteria"`
+		Public   bool     `json:"public"`
 	}
 
 	err = app.readJSON(w, r, &input)
@@ -130,7 +140,7 @@ func (app *application) updateStrategyHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	err = app.models.Strategies.Update(strategy)
+	err = app.models.Strategies.Update(user.ID, strategy)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrEditConflict):
@@ -148,13 +158,15 @@ func (app *application) updateStrategyHandler(w http.ResponseWriter, r *http.Req
 }
 
 func (app *application) deleteStrategyHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := app.readIDParam(r)
+	strategyID, err := app.readIDParam(r)
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	err = app.models.Strategies.Delete(id)
+	user := app.contextGetUser(r)
+
+	err = app.models.Strategies.Delete(user.ID, strategyID)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -179,6 +191,8 @@ func (app *application) listStrategiesHandler(w http.ResponseWriter, r *http.Req
 		data.Filters
 	}
 
+	user := app.contextGetUser(r)
+
 	v := validator.New()
 	// r.URL.Query() returns url.Values map containing the query string data
 	qs := r.URL.Query()
@@ -196,7 +210,7 @@ func (app *application) listStrategiesHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	strategies, metadata, err := app.models.Strategies.GetAll(input.Name, input.Fields, input.Filters)
+	strategies, metadata, err := app.models.Strategies.GetAll(user.ID, input.Name, input.Fields, input.Filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

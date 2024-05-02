@@ -22,8 +22,10 @@ type Strategy struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"-"`
 	Name      string    `json:"name"`
+	Public    bool      `json:"public"`
 	Fields    []string  `json:"fields,omitempty"`
 	Criteria  []string  `json:"criteria,omitempty"`
+	UserID    int64     `json:"user_id"`
 	Version   int32     `json:"version"`
 }
 
@@ -36,24 +38,27 @@ func ValidateStrategy(v *validator.Validator, strategy *Strategy) {
 	v.Check(validator.Unique(strategy.Criteria), "criteria", "must not contain duplicate values")
 }
 
+func IsOwner(userID int64, strategy *Strategy) bool {
+	return userID == strategy.UserID
+}
+
 type StrategyModel struct {
 	DB *sql.DB
 }
 
-func (s StrategyModel) Insert(strategy *Strategy) error {
+func (s StrategyModel) Insert(userID int64, strategy *Strategy) error {
 	query := `
-		INSERT INTO strategies (name, fields, criteria)
-		VALUES ($1, $2, $3)
+		INSERT INTO strategies (name, fields, criteria, public, user_id)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, version
 	`
 
-	// pq.Array() takes our []string slice and converts it to a pq.StringArray type
-	// which implements the driver.Valuer and sql.Scanner interfaces which provide values
-	// the PostgreSQL database can understand and store in a text[] array column
 	args := []interface{}{
 		strategy.Name,
 		pq.Array(strategy.Fields),
 		pq.Array(strategy.Criteria),
+		strategy.Public,
+		userID,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -62,31 +67,30 @@ func (s StrategyModel) Insert(strategy *Strategy) error {
 	return s.DB.QueryRowContext(ctx, query, args...).Scan(&strategy.ID, &strategy.CreatedAt, &strategy.Version)
 }
 
-func (s StrategyModel) GetAll(name string, fields []string, filters Filters) ([]*Strategy, Metadata, error) {
+func (s StrategyModel) GetAll(userID int64, name string, fields []string, filters Filters) ([]*Strategy, Metadata, error) {
 	// to_tsvector('simple', s) takes a string and splits it into lexemes, which is a basic lexical unit of words
 	// planto_tsquery('simple', s) takes a string and converts it to a formatted query term by
 	// stripping special characters and inserts the & operator between words
 	// @@ operator is the matching operator, checks if the query terms match the lexemes
+	// @> operator is the contains operator
 	query := fmt.Sprintf(
-		`SELECT count(*) OVER(), id, created_at, name, fields, criteria, version
+		`SELECT count(*) OVER(), id, created_at, name, fields, criteria, public, version
 		FROM strategies
 		WHERE (to_tsvector('simple', name) @@ plainto_tsquery('simple', $1) OR $1 = '')
-		AND (fields @> $2 OR fields = '{}')
+		AND (fields @> $2 OR fields = '{}') AND (public = true OR user_id = $3)
 		ORDER BY %s %s, id ASC
-		LIMIT $3 OFFSET $4`, filters.sortColumn(), filters.sortDirection())
+		LIMIT $4 OFFSET $5`, filters.sortColumn(), filters.sortDirection())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	args := []interface{}{name, pq.Array(fields), filters.limit(), filters.offset()}
+	args := []interface{}{name, pq.Array(fields), userID, filters.limit(), filters.offset()}
 
 	rows, err := s.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, Metadata{}, err
 	}
 
-	// Importantly, defer a call to rows.Close() to ensure the result set is closed
-	// before GetAll() returns
 	defer rows.Close()
 
 	totalRecords := 0
@@ -102,6 +106,7 @@ func (s StrategyModel) GetAll(name string, fields []string, filters Filters) ([]
 			&strategy.Name,
 			pq.Array(&strategy.Fields),
 			pq.Array(&strategy.Criteria),
+			&strategy.Public,
 			&strategy.Version,
 		)
 		if err != nil {
@@ -120,39 +125,30 @@ func (s StrategyModel) GetAll(name string, fields []string, filters Filters) ([]
 	return strategies, metadata, nil
 }
 
-func (s StrategyModel) Get(id int64) (*Strategy, error) {
-	if id < 1 {
+func (s StrategyModel) Get(userID int64, strategyID int64) (*Strategy, error) {
+	if strategyID < 1 {
 		return nil, ErrRecordNotFound
 	}
 
 	query := `
-		SELECT id, name, created_at, fields, criteria, version
+		SELECT id, name, created_at, public, fields, criteria, user_id, version
 		FROM strategies
-		WHERE id = $1
+		WHERE id = $1 AND user_id = $2
 	`
 
 	var strategy Strategy
 
-	// Use context.WithTimeout() function to create a context.Context
-	// which carries a 3s timeout deadline. Note that we're using empty
-	// context.Background() as the 'parent' context.
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	// Use defer to make sure we cancel the context before the Get() method returns
-	// resources associated with the context will always be released before the Get() method
-	// returns to prevent memory leaks. Without it, resources won't be released until either
-	// the 3s timeout or the parent context is canceled. Timeout countdown begins when the context
-	// is created with context.WithTimeout()
-	// context has a Done channel. While SQL query is running, our database driver pq is
-	// also running a background goroutine which listens on this Done channel. If the channel
-	// is closed then pq sends a cancellation signal to psql and then it terminates the query
 	defer cancel()
 
-	err := s.DB.QueryRowContext(ctx, query, id).Scan(
+	err := s.DB.QueryRowContext(ctx, query, strategyID, userID).Scan(
 		&strategy.ID,
 		&strategy.Name,
 		&strategy.CreatedAt,
+		&strategy.Public,
 		pq.Array(&strategy.Fields),
 		pq.Array(&strategy.Criteria),
+		&strategy.UserID,
 		&strategy.Version,
 	)
 
@@ -168,19 +164,21 @@ func (s StrategyModel) Get(id int64) (*Strategy, error) {
 	return &strategy, nil
 }
 
-func (s StrategyModel) Update(strategy *Strategy) error {
+func (s StrategyModel) Update(userID int64, strategy *Strategy) error {
 	query := `
 		UPDATE strategies
-		SET name = $1, fields = $2, criteria = $3, version = version + 1
-		WHERE id = $4 AND version = $5
+		SET name = $1, public = $2, fields = $3, criteria = $4, version = version + 1
+		WHERE id = $5 AND user_id = $6 AND version = $7
 		RETURNING version
 	`
 
 	args := []interface{}{
 		strategy.Name,
+		strategy.Public,
 		pq.Array(strategy.Fields),
 		pq.Array(strategy.Criteria),
 		strategy.ID,
+		userID,
 		strategy.Version,
 	}
 
@@ -200,22 +198,20 @@ func (s StrategyModel) Update(strategy *Strategy) error {
 	return nil
 }
 
-func (s StrategyModel) Delete(id int64) error {
-	if id < 1 {
+func (s StrategyModel) Delete(userID int64, strategyID int64) error {
+	if strategyID < 1 {
 		return ErrRecordNotFound
 	}
 
 	query := `
 		DELETE from strategies
-		WHERE id = $1
+		WHERE id = $1 AND user_id = $2
 	`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	// Exec() method executes the query, passing in args for
-	// placeholder parameters, returns a sql.Result object
-	result, err := s.DB.ExecContext(ctx, query, id)
+	result, err := s.DB.ExecContext(ctx, query, strategyID, userID)
 	if err != nil {
 		return err
 	}
