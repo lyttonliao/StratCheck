@@ -11,7 +11,6 @@ import (
 	"github.com/lyttonliao/StratCheck/internal/validator"
 )
 
-// Define constants for the token scope
 const (
 	ScopeActivation     = "activation"
 	ScopeAuthentication = "authentication"

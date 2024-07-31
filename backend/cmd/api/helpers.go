@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -146,6 +147,15 @@ func (app *application) readInt(qs url.Values, key string, defaultValue int, v *
 	return i
 }
 
+func (app *application) readFile(filename string) ([]byte, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
 // The background() helper accepts an arbitrary function as a parameter, checks for panics
 func (app *application) background(fn func()) {
 	app.wg.Add(1)
@@ -161,4 +171,43 @@ func (app *application) background(fn func()) {
 	}()
 
 	fn()
+}
+
+func (app *application) forwardRequest(w http.ResponseWriter, r *http.Request, url string) {
+	cookie, err := r.Cookie("jwt")
+	if err != nil {
+		app.invalidAuthenticationTokenResponse(w, r)
+		return
+	}
+
+	url = fmt.Sprintf("http://127.0.0.0:8000/%s", r.URL)
+	proxyReq, err := http.NewRequest(r.Method, url, r.Body)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	proxyReq.Header = make(http.Header)
+	proxyReq.Header.Set("Host", r.Host)
+	proxyReq.Header.Set("X-Forwarded-For", r.Host)
+	proxyReq.Header.Set("Authorization: ", "Bearer "+cookie.Value)
+	for h, val := range r.Header {
+		proxyReq.Header[h] = val
+	}
+
+	client := &http.Client{}
+	proxyRes, err := client.Do(proxyReq)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	defer proxyRes.Body.Close()
+
+	body, err := io.ReadAll(proxyRes.Body)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	w.Write(body)
 }
