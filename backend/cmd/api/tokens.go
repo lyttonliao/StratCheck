@@ -5,11 +5,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang-jwt/jwt"
 	"github.com/lyttonliao/StratCheck/internal/cookies"
 	"github.com/lyttonliao/StratCheck/internal/data"
 	"github.com/lyttonliao/StratCheck/internal/validator"
 )
+
+var secretKeyData []byte
 
 func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
@@ -61,30 +62,7 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
-	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256,
-		jwt.MapClaims{
-			"Sub":        user.ID,
-			"Issued":     time.Now(),
-			"NotBefore":  time.Now(),
-			"Expires":    time.Now().Add(24 * time.Hour),
-			"Issuer":     "stratcheck",
-			"Audience":   []string{"stratcheck"},
-			"Authorized": true,
-		})
-
-	secretKeyData, err := app.readFile("C:/Users/xlord/.ssh/id_rsa")
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	secretKey, err := jwt.ParseRSAPrivateKeyFromPEM(secretKeyData)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	tokenString, err := jwtToken.SignedString(secretKey)
+	secretKeyData, err = app.readFile("C:/Users/xlord/.ssh/id_rsa")
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -92,11 +70,13 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 
 	cookie := http.Cookie{
 		Name:     "jwt",
-		Value:    tokenString,
-		HttpOnly: true,
+		MaxAge:   86400,
 		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
 	}
-	err = cookies.Write(w, cookie)
+
+	err = cookies.Write(w, r, secretKeyData, user.ID, cookie)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

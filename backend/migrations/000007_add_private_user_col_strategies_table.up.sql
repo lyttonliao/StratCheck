@@ -1,3 +1,0 @@
-ALTER TABLE strategies
-ADD COLUMN public boolean NOT NULL DEFAULT FALSE,
-ADD COLUMN user_id bigint REFERENCES users(id) ON DELETE CASCADE;
