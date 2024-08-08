@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -13,17 +15,22 @@ func (app *application) forwardRequestHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
 	url := fmt.Sprintf("http://localhost:8000%s", r.URL)
 	fmt.Println("Forwarding request to: ", url)
 
-	proxyReq, err := http.NewRequest(r.Method, url, r.Body)
+	proxyReq, err := http.NewRequest(r.Method, url, bytes.NewBuffer(body))
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 	proxyReq.Close = true
 
-	proxyReq.Header = r.Header.Clone()
 	proxyReq.Header.Set("Host", r.Host)
 	proxyReq.Header.Set("Content-Type", "application/json")
 	proxyReq.Header.Set("Authorization", "Bearer "+cookie.Value)
