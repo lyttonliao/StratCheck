@@ -92,6 +92,11 @@ func main() {
 
 	flag.Parse()
 
+	if len(cfg.cors.trustedOrigins) == 0 {
+		defaultOrigins := "http://localhost:8000 http://localhost:3000"
+		cfg.cors.trustedOrigins = strings.Fields(defaultOrigins)
+	}
+
 	if *displayVersion {
 		fmt.Printf("Version:\t%s\n", version)
 		fmt.Printf("Build Time:\t%s\n", buildTime)

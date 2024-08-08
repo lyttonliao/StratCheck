@@ -115,6 +115,12 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 
 	user.Activated = true
 
+	err = app.models.Permissions.AddForUser(user.ID, "strategies:write")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
 	err = app.models.Users.Update(user)
 	if err != nil {
 		switch {

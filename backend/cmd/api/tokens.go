@@ -62,18 +62,18 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
-	secretKeyData, err = app.readFile("C:/Users/xlord/.ssh/id_rsa")
+	secretKeyData, err = app.readFile("C:/Users/xlord/.ssh/id_ecdsa")
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	cookie := http.Cookie{
+	cookie := &http.Cookie{
 		Name:     "jwt",
 		MaxAge:   86400,
 		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
+		HttpOnly: false,
+		Secure:   false,
 	}
 
 	err = cookies.Write(w, r, secretKeyData, user.ID, cookie)

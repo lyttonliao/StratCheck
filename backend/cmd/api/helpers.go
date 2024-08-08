@@ -39,6 +39,7 @@ func (app *application) readIDParam(r *http.Request) (int64, error) {
 // pointer values will encode as the value pointed to
 // interface values will encode as value contained in the interface
 func (app *application) writeJSON(w http.ResponseWriter, status int, data envelope, headers http.Header) error {
+	fmt.Println("data: ", data)
 	js, err := json.MarshalIndent(data, "", "\t")
 	if err != nil {
 		return err
@@ -52,7 +53,10 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	w.Write(js)
+	_, err = w.Write(js)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

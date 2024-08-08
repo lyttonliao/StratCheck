@@ -1,8 +1,8 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 )
 
@@ -13,20 +13,20 @@ func (app *application) forwardRequestHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	url := fmt.Sprintf("http://127.0.0.1:8000/%s", r.URL)
+	url := fmt.Sprintf("http://localhost:8000%s", r.URL)
+	fmt.Println("Forwarding request to: ", url)
+
 	proxyReq, err := http.NewRequest(r.Method, url, r.Body)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
+	proxyReq.Close = true
 
-	proxyReq.Header = make(http.Header)
+	proxyReq.Header = r.Header.Clone()
 	proxyReq.Header.Set("Host", r.Host)
-	proxyReq.Header.Set("X-Forwarded-For", r.Host)
-	proxyReq.Header.Set("Authorization: ", "Bearer "+cookie.Value)
-	for h, val := range r.Header {
-		proxyReq.Header[h] = val
-	}
+	proxyReq.Header.Set("Content-Type", "application/json")
+	proxyReq.Header.Set("Authorization", "Bearer "+cookie.Value)
 
 	client := &http.Client{}
 	proxyRes, err := client.Do(proxyReq)
@@ -36,13 +36,17 @@ func (app *application) forwardRequestHandler(w http.ResponseWriter, r *http.Req
 	}
 	defer proxyRes.Body.Close()
 
-	body, err := io.ReadAll(proxyRes.Body)
+	var payload interface{}
+	err = json.NewDecoder(proxyRes.Body).Decode(&payload)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	w.Write(body)
+	err = app.writeJSON(w, proxyRes.StatusCode, envelope{"payload": payload}, proxyReq.Header)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 }
 
 // func (app *application) createStrategyHandler(w http.ResponseWriter, r *http.Request) {
