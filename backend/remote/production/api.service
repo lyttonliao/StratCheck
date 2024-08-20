@@ -18,7 +18,7 @@ User=stratcheck
 Group=stratcheck
 EnvironmentFile=/etc/environment
 WorkingDirectory=/home/stratcheck
-ExecStart=/home/stratcheck/api -port=4000 -db-dsn=${STRATCHECK_DB_DSN} -env=production
+ExecStart=/home/stratcheck/api -port=4000 -db-dsn=${DB_DSN} -env=production
 
 # Automatically restart the service after a 5s wait if it exists with a non-zero exit code. If it restarts more than 5 times in 600 seconds, then the rate limit we configured above will be hit and it won't be restarted anymore.
 Restart=on-failure

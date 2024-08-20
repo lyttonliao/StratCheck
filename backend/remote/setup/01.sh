@@ -69,7 +69,7 @@ sudo -i -u postgres psql -d stratcheck -c "CREATE ROLE stratcheck WITH LOGIN PAS
 
 
 # Add a DSN for connecting to the stratcheck database to teh system-wide environment variables in the /etc/environment file
-echo "STRATCHECK_DB_DSN='postgres://stratcheck:${DB_PASSWORD}@localhost/stratcheck'" >> /etc/environment
+echo "DB_DSN='postgres://stratcheck:${DB_PASSWORD}@localhost/stratcheck'" >> /etc/environment
 
 # Install Caddy (see https://caddyserver.com/docs/install#debian-ubuntu-raspbian).
 sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl

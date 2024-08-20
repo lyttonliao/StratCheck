@@ -1,4 +1,4 @@
-include .envrc
+include ../env
 
 # ==================================================================================== #
 # HELPERS
@@ -22,12 +22,12 @@ confirm:
 ## run/api: run the cmd/api application
 .PHONY: run/api
 run/api:
-	go run ./cmd/api -db-dsn=${STRATCHECK_DB_DSN}
+	go run ./cmd/api -db-dsn=${DB_DSN}
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
 db/psql:
-	psql ${STRATCHECK_DB_DSN}
+	psql ${DB_DSN}
 
 ## db/migrations/new name=$1: create a new database migration
 .PHONY: db/migrations/new
@@ -39,7 +39,7 @@ db/migrations/new:
 .PHONY: db/migrations/up
 db/migrations/up: confirm
 	@echo 'Running up migrations...'
-	migrate -path ./migrations -database ${STRATCHECK_DB_DSN} up
+	migrate -path ./migrations -database ${DB_DSN} up
 
 # ==================================================================================== #
 # QUALITY CONTROL
@@ -99,7 +99,7 @@ production/connect:
 .PHONY: production/deploy/api
 production/deploy/api:
 	rsync -rP --delete ./bin/linux_amd64/api ./migrations stratcheck@${production_host_ip}:~
-	ssh -t stratcheck@${production_host_ip} 'migrate -path ~/migrations -database $$STRATCHECK_DB_DSN up'
+	ssh -t stratcheck@${production_host_ip} 'migrate -path ~/migrations -database $$DB_DSN up'
 
 ## production/configure/api.service: configure the production systemd api.service file
 .PHONY: production/configure/api.service

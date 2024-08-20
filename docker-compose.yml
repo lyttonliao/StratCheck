@@ -1,0 +1,35 @@
+services:
+  backend:
+    build: 
+      context: ./backend
+      args:
+        DEV: "true"
+    env_file: 
+      - .env
+    depends_on:
+      - db
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - DB_DSN=$DB_DSN
+    command: 
+      - go run ./cmd/api -db-dsn=${DB_DSN}
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./:/app
+
+  db:
+    image: postgres:15
+    ports:
+      - "8080:8080"
+    volumes: 
+      - stratcheck_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+
+volumes:
+  stratcheck_data:

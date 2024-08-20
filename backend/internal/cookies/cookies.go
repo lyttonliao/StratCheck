@@ -24,7 +24,7 @@ func Write(w http.ResponseWriter, r *http.Request, secretKeyData []byte, userID 
 			"nbf": time.Now().Unix(),
 			"exp": time.Now().Add(24 * time.Hour).Unix(),
 			"iss": "StratCheck",
-			"aud": []string{"BacktestingApi"},
+			"aud": []string{"BacktraderAPI"},
 		})
 
 	block, _ := pem.Decode(secretKeyData)
