@@ -2,8 +2,6 @@ services:
   backend:
     build: 
       context: ./backend
-      args:
-        DEV: "true"
     env_file: 
       - .env
     depends_on:
@@ -18,12 +16,11 @@ services:
     ports:
       - "4000:4000"
     volumes:
-      - ./:/app
+      - ./backend:/app
+      - ./backend/.env:/app/.env
 
   db:
     image: postgres:15
-    ports:
-      - "8080:8080"
     volumes: 
       - stratcheck_data:/var/lib/postgresql/data
     environment:

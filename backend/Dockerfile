@@ -18,6 +18,4 @@ WORKDIR /
 
 COPY --from=requirements-stage ./app/bin/linux_amd64/api ./bin/linux_amd64/api
 
-EXPOSE 8080
-
 ENTRYPOINT ["./bin/linux_amd64/api"]

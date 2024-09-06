@@ -17,6 +17,7 @@ import (
 	"github.com/lyttonliao/StratCheck/internal/mailer"
 
 	// Alias this import to blank identifier to stop Go compiler from erroring
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
@@ -64,10 +65,20 @@ type application struct {
 }
 
 func main() {
+	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
+
+	err := godotenv.Load()
+	if err != nil {
+		logger.PrintFatal(err, nil)
+	}
+
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpUser := os.Getenv("SMTP_USER")
+	smtpPassword := os.Getenv("SMTP_PASSWORD")
+	trustedOrigins := os.Getenv("TRUSTED_ORIGINS")
+
 	var cfg config
 
-	// Read value of the port and env command-lines into config struct
-	// Default values: 4000, development
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")
@@ -77,24 +88,18 @@ func main() {
 	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
-	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
+	flag.StringVar(&cfg.smtp.host, "smtp-host", smtpHost, "SMTP host")
 	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
-	flag.StringVar(&cfg.smtp.username, "smtp-username", "7976eeb31fe930", "SMTP username")
-	flag.StringVar(&cfg.smtp.password, "smtp-password", "92a8c3af3f0e78", "SMTP password")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", smtpUser, "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", smtpPassword, "SMTP password")
 	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "StratCheck <noreply@StratCheck.com>", "SMTP sender")
-
-	flag.Func("cors-trusted-origins", "Trusted CORS origins (space separated)", func(val string) error {
-		cfg.cors.trustedOrigins = strings.Fields(val)
-		return nil
-	})
 
 	displayVersion := flag.Bool("version", false, "Display version and exit")
 
 	flag.Parse()
 
 	if len(cfg.cors.trustedOrigins) == 0 {
-		defaultOrigins := "http://localhost:8000 http://localhost:3000"
-		cfg.cors.trustedOrigins = strings.Fields(defaultOrigins)
+		cfg.cors.trustedOrigins = strings.Fields(trustedOrigins)
 	}
 
 	if *displayVersion {
@@ -103,9 +108,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
-
 	db, err := openDB(cfg)
+	fmt.Println(cfg)
 	if err != nil {
 		logger.PrintFatal(err, nil)
 	}
