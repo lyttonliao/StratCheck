@@ -7,7 +7,7 @@ RUN go mod download
 
 COPY . .
 
-RUN GOOS=linux GOARCH=amd64 go build -ldflags='-s' -o=./bin/linux_amd64/api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags='-s' -o=./bin/linux_amd64/api ./cmd/api
 
 FROM golang:1.22 AS run-test-stage
 RUN go test -race -vet=off ./...
@@ -17,5 +17,7 @@ FROM golang:1.22
 WORKDIR /
 
 COPY --from=requirements-stage ./app/bin/linux_amd64/api ./bin/linux_amd64/api
+
+EXPOSE 4000
 
 ENTRYPOINT ["./bin/linux_amd64/api"]

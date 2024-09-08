@@ -2,22 +2,15 @@ services:
   backend:
     build: 
       context: ./backend
+      dockerfile: Dockerfile
     env_file: 
-      - .env
+      - ./backend/.env
     depends_on:
       - db
-    environment:
-      - POSTGRES_DB=${DB_NAME}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - DB_DSN=$DB_DSN
-    command: 
-      - go run ./cmd/api -db-dsn=${DB_DSN}
     ports:
       - "4000:4000"
     volumes:
       - ./backend:/app
-      - ./backend/.env:/app/.env
 
   db:
     image: postgres:15

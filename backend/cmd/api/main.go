@@ -17,7 +17,7 @@ import (
 	"github.com/lyttonliao/StratCheck/internal/mailer"
 
 	// Alias this import to blank identifier to stop Go compiler from erroring
-	"github.com/joho/godotenv"
+
 	_ "github.com/lib/pq"
 )
 
@@ -67,11 +67,12 @@ type application struct {
 func main() {
 	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
-	err := godotenv.Load()
-	if err != nil {
-		logger.PrintFatal(err, nil)
-	}
+	// err := godotenv.Load()
+	// if err != nil {
+	// 	logger.PrintFatal(err, nil)
+	// }
 
+	dsn := os.Getenv("DB_DSN")
 	smtpHost := os.Getenv("SMTP_HOST")
 	smtpUser := os.Getenv("SMTP_USER")
 	smtpPassword := os.Getenv("SMTP_PASSWORD")
@@ -81,7 +82,7 @@ func main() {
 
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
-	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", dsn, "PostgreSQL DSN")
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connections")
 	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "PostgreSQL max connection idle time")
@@ -109,7 +110,6 @@ func main() {
 	}
 
 	db, err := openDB(cfg)
-	fmt.Println(cfg)
 	if err != nil {
 		logger.PrintFatal(err, nil)
 	}
